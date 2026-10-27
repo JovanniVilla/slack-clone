@@ -1,7 +1,7 @@
 import { type VariantProps, cva } from 'class-variance-authority';
 import Link from 'next/link';
 
-import type { Id } from '@/../convex/_generated/dataModel';
+import type { Id } from '@/types/data-model';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceId } from '@/hooks/use-workspace-id';
@@ -21,20 +21,21 @@ const userItemVariants = cva('flex items-center gap-1.5 justify-start font-norma
 
 interface UserItemProps {
   id: Id<'members'>;
-  label?: string;
-  image?: string;
+  label?: string | null;
+  image?: string | null;
   variant?: VariantProps<typeof userItemVariants>['variant'];
 }
 
 export const UserItem = ({ id, label = 'Member', image, variant }: UserItemProps) => {
   const workspaceId = useWorkspaceId();
-  const avatarFallback = label.charAt(0).toUpperCase();
+  const displayLabel = label || 'Member';
+  const avatarFallback = displayLabel.charAt(0).toUpperCase();
 
   return (
     <Button variant="transparent" className={cn(userItemVariants({ variant }))} size="sm" asChild>
       <Link href={`/workspace/${workspaceId}/member/${id}`}>
         <Avatar className="mr-1 size-5">
-          <AvatarImage alt={label} src={image} />
+          <AvatarImage alt={displayLabel} src={image || undefined} />
 
           <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
         </Avatar>

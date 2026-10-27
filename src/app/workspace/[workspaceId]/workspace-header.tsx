@@ -3,7 +3,7 @@
 import { ChevronDown, ListFilter, SquarePen } from 'lucide-react';
 import { useState } from 'react';
 
-import { Doc } from '@/../convex/_generated/dataModel';
+import type { Doc } from '@/types/data-model';
 import { Hint } from '@/components/hint';
 import { Button } from '@/components/ui/button';
 import {

@@ -1,23 +1,23 @@
-# Contexto Unificado del Proyecto: Slack Clone
+# Contexto Unificado del Proyecto: Slack Clone (Self-Hosted Architecture)
 
-Este documento proporciona el contexto técnico, arquitectónico y operativo necesario para que cualquier agente de IA o desarrollador entienda y trabaje en este proyecto de manera coherente y eficiente.
+Este documento proporciona el contexto técnico, arquitectónico y operativo del proyecto tras la migración a un stack **100% independiente y autoalojable en VPS**, eliminando cualquier dependencia de proveedores terceros propietarios (como Convex).
 
 ---
 
 ## 1. Visión General del Proyecto
 
-**Slack Clone** es una aplicación web de mensajería y colaboración en tiempo real inspirada en Slack. Soporta espacios de trabajo (workspaces), canales públicos, mensajes directos (1 a 1), hilos de conversación (threads), reacciones con emojis, carga de archivos adjuntos (imágenes) y edición enriquecida de texto (WYSIWYG con Quill).
+**Slack Clone** es una aplicación web de mensajería y colaboración en tiempo real con soporte para espacios de trabajo (workspaces), canales públicos, mensajes directos (1 a 1), hilos de conversación anidados (threads), reacciones con emojis, subida de archivos adjuntos (imágenes en disco local) y editor enriquecido de texto (WYSIWYG con Quill 2.0).
 
 ### Capacidades Principales
-- **Autenticación Multimodal**: Registro e inicio de sesión con email/contraseña, Google OAuth y GitHub OAuth mediante Convex Auth.
-- **Espacios de Trabajo (Workspaces)**: Creación de espacios de trabajo, cambio rápido (switcher), generación y regeneración de códigos de invitación de 6 caracteres (`joinCode`).
+- **Autenticación Autónoma**: Registro e inicio de sesión con email/contraseña cifrados con bcrypt, Google OAuth y GitHub OAuth mediante **NextAuth v5 (Auth.js)** y `@auth/drizzle-adapter`.
+- **Base de Datos Relacional y Migraciones**: Modelado estricto con **PostgreSQL 16** y **Drizzle ORM** (`src/db/schema.ts`).
+- **Tiempo Real Aislado de Alto Desempeño**: Microservicio dedicado de **Socket.io** (`socket-server/`) corriendo en contenedor independiente, evitando saturar el event loop de Next.js.
+- **Entrega Acelerada de Archivos**: Volumen en disco local servido directamente por **Nginx** usando `sendfile` a nivel de kernel, sin intermediación de Node.js ni sobrecarga de S3.
+- **Espacios de Trabajo (Workspaces)**: Creación de workspaces, cambio rápido (switcher), generación y regeneración de códigos de invitación de 6 caracteres (`joinCode`).
 - **Control de Acceso Basado en Roles (RBAC)**: Roles de `admin` y `member` por espacio de trabajo.
-- **Canales (Channels)**: Canales temáticos dentro de un workspace (canal `#general` creado por defecto).
-- **Mensajería Directa (Conversations / DMs)**: Conversaciones privadas 1 a 1 entre miembros del workspace.
+- **Canales y DMs**: Canales temáticos (#general por defecto) y conversaciones privadas 1 a 1.
 - **Hilos de Conversación (Threads)**: Respuestas anidadas en mensajes principales con conteo, avatar del último participante y marcas de tiempo.
-- **Editor Enriquecido (Quill 2.0)**: Formato de texto, emojis (`emoji-picker-react`), soporte de pegado y carga de imágenes.
-- **Reacciones**: Sistema de toggle para reacciones emoji por mensaje y miembro.
-- **Interfaz Dividida y Redimensionable**: Paneles colapsables y redimensionables (`react-resizable-panels`) para navegación, chat principal e hilos/perfiles laterales.
+- **Interfaz Dividida y Redimensionable**: Paneles colapsables y redimensionables (`react-resizable-panels`) coordinados mediante `usePanel()` y `nuqs`.
 
 ---
 
@@ -25,15 +25,18 @@ Este documento proporciona el contexto técnico, arquitectónico y operativo nec
 
 | Capa | Tecnología | Versión / Detalle |
 | :--- | :--- | :--- |
-| **Framework Frontend** | [Next.js](https://nextjs.org/) | `16.4.2` (App Router) |
+| **Framework Frontend** | [Next.js](https://nextjs.org/) | `16.4.2` (App Router, standalone output) |
 | **Librería UI** | [React](https://react.dev/) | `19.3.0` |
 | **Lenguaje** | [TypeScript](https://www.typescriptlang.org/) | `5.9.3` (Strict mode) |
-| **Backend & Base de Datos** | [Convex](https://convex.dev/) | `1.45.0` (Backend reactivo en tiempo real y storage de archivos) |
-| **Autenticación** | [@convex-dev/auth](https://labs.convex.dev/auth) + [@auth/core](https://authjs.dev/) | `0.0.96` / `0.41.3` (Password, GitHub, Google) |
-| **Estilos & UI Kit** | [Tailwind CSS](https://tailwindcss.com/) + [Radix UI](https://www.radix-ui.com/) | Tailwind v3.4.19, Radix primitives, Lucide React, React Icons |
-| **Estado Global / URL** | [Jotai](https://jotai.org/) + [nuqs](https://nuqs.47ng.com/) | Jotai para modales; nuqs para sincronización del panel con la URL (`parentMessageId`, `profileMemberId`) |
+| **Base de Datos** | [PostgreSQL](https://www.postgresql.org/) | `16-alpine` (Docker) |
+| **ORM & Migraciones** | [Drizzle ORM](https://orm.drizzle.team/) | `0.45.4` (`drizzle-orm`, `drizzle-kit`, `postgres`) |
+| **Autenticación** | [Auth.js / NextAuth v5](https://authjs.dev/) | `5.0.0-beta.32` (`@auth/drizzle-adapter`, `bcryptjs`) |
+| **Tiempo Real (WebSockets)** | [Socket.io](https://socket.io/) | `4.8.4` (Microservicio independiente en puerto 4000) |
+| **Gestión de Estado / Caché** | [TanStack Query](https://tanstack.com/query) + [Jotai](https://jotai.org/) + [nuqs](https://nuqs.47ng.com/) | Query v5 para servidor, Jotai para modales, nuqs para URL |
+| **Proxy & Servidor Web** | [Nginx](https://nginx.org/) | `alpine` con `sendfile` y WebSocket upgrade |
 | **Editor de Texto** | [Quill](https://quilljs.com/) | `2.0.3` con estilos snow |
-| **Notificaciones Toast** | [Sonner](https://sonner.emilkowal.ski/) | `2.0.8` |
+| **Estilos & UI Kit** | [Tailwind CSS](https://tailwindcss.com/) + [Radix UI](https://www.radix-ui.com/) | Tailwind v3.4.19, Radix primitives, Lucide React, React Icons |
+| **Orquestación VPS** | [Docker Compose](https://docs.docker.com/compose/) | Compose v2 (`docker-compose.yml`) |
 | **Package Manager** | [pnpm](https://pnpm.io/) | `11.10.0` |
 
 ---
@@ -44,186 +47,144 @@ Este documento proporciona el contexto técnico, arquitectónico y operativo nec
 slack-clone/
 ├── .agents/
 │   └── AGENTS.md                  # Contexto unificado y reglas para agentes de IA
-├── convex/                        # Backend reactivo de Convex
-│   ├── _generated/                # Tipos y cliente autogenerados (dataModel, api)
-│   ├── auth.config.ts             # Configuración del proveedor de auth
-│   ├── auth.ts                    # Providers de auth (Password, GitHub, Google)
-│   ├── channels.ts                # Queries y mutaciones para canales
-│   ├── conversations.ts           # Queries y mutaciones para DMs (1 a 1)
-│   ├── http.ts                    # Enrutador HTTP para webhooks / auth callbacks
-│   ├── members.ts                 # Queries y mutaciones para membresías y roles
-│   ├── messages.ts                # Queries paginadas y mutaciones de mensajes e hilos
-│   ├── reactions.ts               # Mutación de toggle para reacciones
-│   ├── schema.ts                  # Esquema de la base de datos de Convex
-│   ├── upload.ts                  # Generación de URLs de carga para Convex Storage
-│   ├── users.ts                   # Queries de usuario actual
-│   └── workspaces.ts              # Queries y mutaciones de workspaces y códigos de unión
+├── drizzle/                       # Migraciones SQL generadas por Drizzle Kit
+│   └── 0000_cool_madelyne_pryor.sql
+├── nginx/
+│   └── nginx.conf                 # Configuración de Nginx para producción y proxy inverso
+├── socket-server/                 # Microservicio independiente de WebSockets
+│   ├── src/
+│   │   └── server.ts              # Servidor HTTP + Socket.io con puente REST (/emit)
+│   ├── Dockerfile                 # Contenedor ultra-ligero para WebSockets
+│   ├── package.json
+│   └── tsconfig.json
 ├── src/
 │   ├── app/                       # Rutas de Next.js (App Router)
+│   │   ├── api/                   # Route Handlers REST
+│   │   │   ├── auth/              # [...nextauth], register
+│   │   │   ├── channels/          # GET, POST, [channelId] (GET, PATCH, DELETE)
+│   │   │   ├── conversations/     # POST (create or get)
+│   │   │   ├── members/           # GET, current, [memberId] (GET, PATCH, DELETE)
+│   │   │   ├── messages/          # GET (cursor paginated), POST, [messageId]
+│   │   │   ├── reactions/         # POST (toggle)
+│   │   │   ├── upload/            # POST (high performance disk storage)
+│   │   │   ├── users/             # current
+│   │   │   └── workspaces/        # GET, POST, [workspaceId], info, join, new-join-code
 │   │   ├── auth/                  # Pantalla de autenticación (/auth)
-│   │   ├── join/[workspaceId]/    # Pantalla de ingreso a workspace por código (/join/:id)
+│   │   ├── join/[workspaceId]/    # Ingreso a workspace por código (/join/:id)
 │   │   ├── workspace/[workspaceId]/ # Shell principal del workspace
-│   │   │   ├── channel/[channelId]/ # Vista de canal (/workspace/:id/channel/:id)
-│   │   │   ├── member/[memberId]/   # Vista de conversación 1 a 1 (/workspace/:id/member/:id)
-│   │   │   ├── layout.tsx         # Layout con Toolbar, Sidebar y Paneles Redimensionables
-│   │   │   └── page.tsx           # Redirección inicial al primer canal o creación
-│   │   ├── globals.css            # Estilos globales y variables de Tailwind
-│   │   ├── layout.tsx             # Root layout (Proveedores: Convex, Jotai, Sonner, Modals)
-│   │   └── page.tsx               # Raíz (/): redirige al primer workspace o abre modal de creación
+│   │   │   ├── channel/[channelId]/ # Vista de canal
+│   │   │   ├── member/[memberId]/   # Vista de DM 1 a 1
+│   │   │   └── layout.tsx         # Layout con Toolbar, Sidebar y Paneles
+│   │   ├── globals.css
+│   │   ├── layout.tsx             # Root layout (AuthProvider, QueryProvider, SocketProvider, Jotai)
+│   │   └── page.tsx               # Redirección inicial
+│   ├── auth.config.ts             # Configuración de Auth.js compatible con Edge/Middleware
+│   ├── auth.ts                    # Configuración principal de NextAuth con DrizzleAdapter
 │   ├── components/                # Componentes compartidos y transversales
-│   │   ├── ui/                    # Primitivas de Shadcn UI (button, dialog, avatar, etc.)
-│   │   ├── editor.tsx             # Wrapper de Quill con soporte de emojis e imágenes
-│   │   ├── message.tsx            # Renderizado de un mensaje individual con toolbar y reacciones
-│   │   ├── message-list.tsx       # Lista virtualizada/paginada con separadores por fecha
-│   │   ├── reactions.tsx          # Pills de reacciones emoji y conteo
-│   │   ├── thread-bar.tsx         # Barra de visualización de hilo debajo del mensaje
-│   │   └── modal-provider.tsx     # Montaje de modales globales controlados por Jotai
-│   ├── config/                    # Configuración estática y metadatos del sitio
-│   ├── features/                  # Arquitectura modular por dominio (Feature-Sliced)
-│   │   ├── auth/                  # Componentes y hooks de autenticación
+│   │   ├── ui/                    # Primitivas Shadcn UI
+│   │   ├── auth-provider.tsx      # Wrapper cliente de SessionProvider
+│   │   ├── query-provider.tsx     # TanStack QueryClientProvider
+│   │   ├── socket-provider.tsx    # Contexto WebSocket e invalidación de caché reactiva
+│   │   ├── editor.tsx             # Editor Quill
+│   │   ├── message.tsx            # Renderizado de mensaje
+│   │   └── message-list.tsx       # Lista virtualizada/paginada de mensajes
+│   ├── db/                        # Capa de base de datos PostgreSQL
+│   │   ├── index.ts               # Cliente Drizzle conectado a Postgres
+│   │   ├── migrate.ts             # Script ejecutor de migraciones SQL
+│   │   └── schema.ts              # Esquema Drizzle y relaciones relacionales
+│   ├── features/                  # Dominio modular (Feature-Sliced)
+│   │   ├── auth/                  # api, components, types
 │   │   ├── channels/              # api (use-get-channels, etc.), components, store
 │   │   ├── conversations/         # api (use-create-or-get-conversation)
-│   │   ├── members/               # api (use-get-member, etc.), components (profile.tsx), store
+│   │   ├── members/               # api (use-get-members, etc.), components (profile.tsx), store
 │   │   ├── messages/              # api (use-get-messages, etc.), components (thread.tsx), store
 │   │   ├── reactions/             # api (use-toggle-reaction)
 │   │   ├── upload/                # api (use-generate-upload-url)
 │   │   └── workspaces/            # api (use-create-workspace, etc.), components, store
 │   ├── hooks/                     # Custom hooks utilitarios
-│   │   ├── use-channel-id.ts      # Extrae channelId de los params de la ruta
-│   │   ├── use-workspace-id.ts    # Extrae workspaceId de los params de la ruta
-│   │   ├── use-member-id.ts       # Extrae memberId de los params de la ruta
-│   │   ├── use-panel.ts           # Coordina el estado de nuqs (parentMessageId vs profileMemberId)
-│   │   └── use-confirm.tsx        # Hook de diálogo de confirmación asíncrono
 │   ├── lib/
-│   │   └── utils.ts               # Función `cn` (clsx + tailwind-merge)
-│   └── middleware.ts              # Convex Auth Next.js middleware para protección de rutas
-├── components.json                # Configuración de Shadcn UI
-├── next.config.mjs                # Configuración de Next.js (images: unoptimized)
-├── package.json                   # Dependencias y scripts de ejecución
-├── tsconfig.json                  # Paths (@/* -> ./src/*) y opciones estrictas de TS
-└── vercel.sh / vercel.ts          # Scripts de despliegue para Vercel
+│   │   ├── socket-emitter.ts      # Despachador interno de eventos Next.js -> socket-server
+│   │   └── utils.ts               # Helper cn()
+│   ├── middleware.ts              # NextAuth v5 middleware
+│   └── types/
+│       └── data-model.ts          # Tipos Id y Doc universales
+├── docker-compose.yml             # Orquestación de producción (Postgres, App, Sockets, Nginx)
+├── Dockerfile                     # Construcción standalone de Next.js
+├── drizzle.config.ts              # Configuración de Drizzle Kit
+├── package.json
+└── tsconfig.json
 ```
 
 ---
 
-## 4. Esquema de Datos y Relaciones (Convex)
+## 4. Esquema de Base de Datos (Drizzle ORM)
 
-El archivo `convex/schema.ts` define las siguientes colecciones e índices:
+Definido en `src/db/schema.ts`:
 
-### Colecciones
-1. **`workspaces`**:
-   - `name`: string
-   - `userId`: `Id<'users'>` (creador/propietario)
-   - `joinCode`: string (código de 6 caracteres para invitar)
-2. **`members`**:
-   - `userId`: `Id<'users'>`
-   - `workspaceId`: `Id<'workspaces'>`
-   - `role`: `'admin' | 'member'`
-   - *Índices*: `by_user_id`, `by_workspace_id`, `by_workspace_id_user_id` (combinado para búsqueda rápida).
-3. **`channels`**:
-   - `name`: string
-   - `workspaceId`: `Id<'workspaces'>`
-   - *Índices*: `by_workspace_id`
-4. **`conversations`** (Mensajes Directos):
-   - `workspaceId`: `Id<'workspaces'>`
-   - `memberOneId`: `Id<'members'>`
-   - `memberTwoId`: `Id<'members'>`
-   - *Índices*: `by_workspace_id`
-5. **`messages`**:
-   - `body`: string (contenido enriquecido en JSON/Delta o texto)
-   - `image`: opcional `Id<'_storage'>` (referencia a archivo en Convex Storage)
-   - `memberId`: `Id<'members'>`
-   - `workspaceId`: `Id<'workspaces'>`
-   - `channelId`: opcional `Id<'channels'>` (presente si es mensaje de canal)
-   - `conversationId`: opcional `Id<'conversations'>` (presente si es DM)
-   - `parentMessageId`: opcional `Id<'messages'>` (presente si es respuesta a un hilo)
-   - `updatedAt`: opcional number (timestamp de última edición)
-   - *Índice principal*: `by_channel_id_parent_message_id_conversation_id` (soporta filtrado exacto y paginación en tiempo real).
-6. **`reactions`**:
-   - `workspaceId`: `Id<'workspaces'>`
-   - `messageId`: `Id<'messages'>`
-   - `memberId`: `Id<'members'>`
-   - `value`: string (carácter o código emoji)
-   - *Índices*: `by_workspace_id`, `by_message_id`, `by_member_id`
-7. **`...authTables`**:
-   - Provistas automáticamente por `@convex-dev/auth/server` (`users`, `authSessions`, `authAccounts`, etc.).
+1. **`users`**: `id` (text PK), `name`, `email` (unique), `emailVerified`, `image`, `password` (bcrypt hash), `createdAt`.
+2. **`accounts`**, **`sessions`**, **`verificationTokens`**: Tablas estándar de Auth.js para sesiones y proveedores OAuth.
+3. **`workspaces`**: `id` (uuid PK), `name`, `userId` (FK users), `joinCode` (6 caracteres), `createdAt`.
+4. **`members`**: `id` (uuid PK), `userId` (FK users), `workspaceId` (FK workspaces), `role` (`'admin' | 'member'`), `createdAt`. Índice único `(workspaceId, userId)`.
+5. **`channels`**: `id` (uuid PK), `name`, `workspaceId` (FK workspaces), `createdAt`.
+6. **`conversations`**: `id` (uuid PK), `workspaceId` (FK workspaces), `memberOneId` (FK members), `memberTwoId` (FK members). Índice único `(workspaceId, memberOneId, memberTwoId)`.
+7. **`messages`**: `id` (uuid PK), `body`, `image` (URL /uploads/...), `memberId` (FK members), `workspaceId` (FK workspaces), `channelId` (FK channels), `conversationId` (FK conversations), `parentMessageId` (FK messages), `updatedAt`, `createdAt`.
+8. **`reactions`**: `id` (uuid PK), `workspaceId`, `messageId` (FK messages), `memberId` (FK members), `value` (emoji). Índice único `(messageId, memberId, value)`.
 
 ---
 
 ## 5. Patrones Arquitectónicos y Convenciones de Código
 
-### 5.1. Patrón de Hooks de Mutación en `src/features/*/api`
-Para mantener un manejo homogéneo de peticiones de mutación en toda la aplicación, cada mutación de Convex se envuelve en un custom hook que gestiona estados de ciclo de vida (`isPending`, `isSuccess`, `isError`, `isSettled`):
+### 5.1. Patrón de Hooks en `src/features/*/api`
+Para preservar la estabilidad de todos los componentes visuales de la aplicación, los custom hooks en `src/features/*/api` mantienen la firma uniforme:
 ```typescript
-// Ejemplo de patrón en src/features/<feature>/api/use-*.ts
-export const useExampleMutation = () => {
-  const [data, setData] = useState<ResponseType>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const [status, setStatus] = useState<'success' | 'error' | 'settled' | 'pending' | null>(null);
-
-  const mutation = useMutation(api.<feature>.<action>);
-
-  const mutate = useCallback(async (values: RequestType, options?: Options) => {
-    try {
-      setStatus('pending');
-      const response = await mutation(values);
-      options?.onSuccess?.(response);
-      return response;
-    } catch (err) {
-      setStatus('error');
-      options?.onError?.(err as Error);
-      if (!options?.throwError) throw err;
-    } finally {
-      setStatus('settled');
-      options?.onSettled?.();
-    }
-  }, [mutation]);
-
-  return { mutate, data, error, isPending, isSuccess, isError, isSettled };
-};
+const { mutate, data, error, isPending, isSuccess, isError, isSettled } = useExampleMutation();
 ```
+Por debajo, utilizan llamadas `fetch` a `/api/*` y ejecutan invalidación de caché reactiva con TanStack Query (`queryClient.invalidateQueries(...)`).
 
-### 5.2. Estado Global vs Estado en URL
-- **Modales (Jotai)**: Los modales que crean recursos (ej: `create-workspace-modal`, `create-channel-modal`) usan átomos simples de Jotai (`src/features/*/store`).
-- **Paneles Laterales (nuqs)**: El panel lateral derecho (para mostrar un hilo `parentMessageId` o el perfil de un miembro `profileMemberId`) se sincroniza estrictamente mediante parámetros de búsqueda en la URL con `nuqs` a través del hook `usePanel()`. Esto permite persistencia en recarga y enlaces compartibles.
+### 5.2. Paginación Infinita de Mensajes (`useGetMessages`)
+- Endpoint: `GET /api/messages?channelId=...&cursor=...&limit=20`
+- Utiliza paginación por cursor en PostgreSQL con ordenación descendente por `createdAt`.
+- En el cliente, `useGetMessages` usa `useInfiniteQuery` y expone `{ results, status, loadMore }`, manteniendo compatibilidad total con `<MessageList />`.
 
-### 5.3. Flujo de Subida de Archivos
-La subida de imágenes para mensajes se realiza en dos fases:
-1. Llamar a `api.upload.generateUploadUrl` para obtener una URL de subida temporal de Convex.
-2. Hacer un `POST` HTTP del archivo binario a dicha URL, el cual retorna `{ storageId }`.
-3. Pasar el `storageId` en la mutación `api.messages.create({ image: storageId, ... })`.
+### 5.3. Flujo en Tiempo Real (Sockets)
+1. Al montarse un canal o conversación, el cliente se une a la sala mediante `joinRoom('channel:XYZ')`.
+2. Cuando se crea, actualiza o elimina un mensaje en `/api/messages`, Next.js llama a `emitSocketEvent()` en `src/lib/socket-emitter.ts`.
+3. `emitSocketEvent()` envía un `POST /emit` al microservicio en `socket-server:4000`.
+4. El microservicio emite el evento en la sala WebSocket correspondiente.
+5. El cliente en `src/components/socket-provider.tsx` recibe el evento e invalida automáticamente la caché de TanStack Query, logrando actualización instantánea sin recarga.
 
-### 5.4. Reglas de Estilo e Importaciones
-- **Prettier & Linters**:
-  - `printWidth`: 140
-  - `singleQuote`: true
-  - `semi`: true
-  - Orden de importaciones regulado por `@trivago/prettier-plugin-sort-imports`:
-    1. Librerías de terceros (`<THIRD_PARTY_MODULES>`)
-    2. Rutas con alias absoluto (`^@/(.*)$`)
-    3. Rutas relativas (`^[./]`)
-- **Tailwind**: Utilizar siempre el helper `cn()` de `@/lib/utils` para combinar clases condicionales.
+### 5.4. Subida y Servido de Imágenes (Alto Rendimiento)
+1. El cliente envía el archivo binario a `POST /api/upload`.
+2. Next.js valida tamaño (<10MB) y tipo MIME, generando un nombre único y guardándolo en el directorio persistente (`/app/public/uploads`).
+3. En producción, **Nginx intercepta las peticiones `/uploads/*`** y las sirve directamente desde el volumen de disco montado mediante la llamada de sistema `sendfile`, logrando latencias inferiores a 1 ms y cero uso de RAM en Node.js.
 
 ---
 
-## 6. Variables de Entorno y Configuración
+## 6. Variables de Entorno
 
-El archivo `.env.local` en la raíz requiere:
+### `.env.local` (Desarrollo Local)
 ```env
-# Telemetría desactivada de Next.js
 NEXT_TELEMETRY_DISABLED=1
-
-# Despliegue de Convex (generado por `npx convex dev`)
-CONVEX_DEPLOYMENT=dev:<deployment-name>
-
-# URL pública de Convex
-NEXT_PUBLIC_CONVEX_URL="https://<deployment-name>.convex.cloud"
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/slack_clone"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="dev-nextauth-secret-key-32-characters-long"
+NEXT_PUBLIC_SOCKET_URL="http://localhost:4000"
+SOCKET_INTERNAL_URL="http://localhost:4000"
+INTERNAL_SOCKET_SECRET="slack-clone-internal-socket-secret"
 ```
 
-Variables requeridas en el backend de Convex (configuradas mediante `npx convex env set <CLAVE> <VALOR>`):
-- `SITE_URL`: URL del frontend (ej. `http://localhost:3000` en local).
-- `AUTH_GOOGLE_CLIENT_ID` y `AUTH_GOOGLE_CLIENT_SECRET`: Credenciales de Google Cloud OAuth (Redirect URI: `<CONVEX_HTTP_ACTIONS_URL>/api/auth/callback/google`).
-- `AUTH_GITHUB_ID` y `AUTH_GITHUB_SECRET`: Credenciales de GitHub OAuth App (Authorization callback URL: `<CONVEX_HTTP_ACTIONS_URL>/api/auth/callback/github`).
+### Variables de Producción (VPS en `.env` para Docker Compose)
+```env
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=un_password_seguro_de_postgres
+NEXTAUTH_SECRET=clave_aleatoria_de_al_menos_32_caracteres
+NEXTAUTH_URL=https://tudominio.com
+INTERNAL_SOCKET_SECRET=clave_secreta_para_comunicacion_interna_de_sockets
+AUTH_GITHUB_ID=
+AUTH_GITHUB_SECRET=
+AUTH_GOOGLE_CLIENT_ID=
+AUTH_GOOGLE_CLIENT_SECRET=
+```
 
 ---
 
@@ -231,23 +192,30 @@ Variables requeridas en el backend de Convex (configuradas mediante `npx convex 
 
 | Comando | Descripción |
 | :--- | :--- |
-| `pnpm dev` | Inicia el servidor de desarrollo de Next.js en `http://localhost:3000`. |
-| `npx convex dev` / `pnpm dlx convex dev` | Ejecuta el servidor y watcher de funciones Convex, sincronizando tipos en `convex/_generated`. |
-| `pnpm build` | Compila el bundle de producción de Next.js. |
-| `pnpm build:production` | Despliega Convex a producción y ejecuta la compilación de Next.js. |
-| `pnpm lint` | Analiza el código con ESLint (`next/core-web-vitals` + `prettier`). |
-| `pnpm lint:fix` | Corrige problemas automáticos de ESLint. |
-| `pnpm format` | Comprueba el formato de código con Prettier. |
-| `pnpm format:fix` | Aplica el formato automático de código con Prettier e import sorting. |
-
-> **Nota para agentes**: Al desarrollar localmente, se deben mantener activos tanto el servidor de Next.js (`pnpm dev`) como el de Convex (`pnpm dlx convex dev`) para que las mutaciones y tipos autogenerados estén al día.
+| `pnpm dev` | Inicia Next.js en `http://localhost:3000`. |
+| `cd socket-server && npm run dev` | Inicia el microservicio de WebSockets localmente en el puerto 4000. |
+| `pnpm run db:generate` | Genera nuevos archivos de migración SQL en `drizzle/` basados en `src/db/schema.ts`. |
+| `pnpm run db:migrate` | Ejecuta las migraciones pendientes en PostgreSQL. |
+| `pnpm run db:studio` | Abre la interfaz visual de base de datos Drizzle Studio. |
+| `pnpm build` | Compila la aplicación Next.js en modo producción (`standalone`). |
+| `docker compose up -d --build` | Despliega toda la infraestructura en el VPS (Postgres, App, Sockets, Nginx). |
 
 ---
 
-## 8. Consideraciones Críticas para Agentes
+## 8. Despliegue en VPS con Docker Compose
 
-1. **No modificar directamente `convex/_generated/`**: Estos archivos son creados automáticamente por el CLI de Convex. Para cambiar tipos o funciones del backend, modifica los archivos fuente en `convex/*.ts`.
-2. **Tipado Estricto de IDs**: Usa siempre `Id<'tabla'>` de `@/../convex/_generated/dataModel` en lugar de `string` para identificadores de Convex en componentes y hooks.
-3. **Validación de Roles y Permisos**: Siempre valida en las mutaciones de Convex que el usuario actual (`getAuthUserId(ctx)`) pertenezca al `workspaceId` correspondiente y que posea el rol adecuado (`admin` para regenerar códigos o modificar canales/workspaces).
-4. **Respuestas de Hilos**: Un mensaje de hilo debe incluir `parentMessageId`. Si se responde en un DM, hereda el `conversationId` del mensaje padre.
-5. **Preservar el Orden de Importaciones**: Al agregar o modificar imports, mantén el orden estricto de Prettier para evitar fallos de linteo (`pnpm format:fix`).
+Para desplegar en tu propio servidor VPS:
+1. Clona el repositorio en tu VPS:
+   ```bash
+   git clone <tu-repo> && cd slack-clone
+   ```
+2. Crea el archivo `.env` en la raíz con tus contraseñas y claves de producción.
+3. Inicia todos los servicios en segundo plano:
+   ```bash
+   docker compose up -d --build
+   ```
+4. Ejecuta las migraciones iniciales de base de datos dentro del contenedor:
+   ```bash
+   docker compose exec app pnpm run db:migrate
+   ```
+5. La aplicación estará lista y sirviéndose a través de Nginx en el puerto 80 (y 443 con certificado SSL).

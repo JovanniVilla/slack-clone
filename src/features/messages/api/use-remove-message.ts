@@ -1,13 +1,8 @@
-import { useMutation } from 'convex/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
-
-type RequestType = {
-  id: Id<'messages'>;
-};
-type ResponseType = Id<'messages'> | null;
+type RequestType = { id: string };
+type ResponseType = string | null;
 
 type Options = {
   onSuccess?: (data: ResponseType) => void;
@@ -17,6 +12,7 @@ type Options = {
 };
 
 export const useRemoveMessage = () => {
+  const queryClient = useQueryClient();
   const [data, setData] = useState<ResponseType>(null);
   const [error, setError] = useState<Error | null>(null);
   const [status, setStatus] = useState<'success' | 'error' | 'settled' | 'pending' | null>(null);
@@ -26,8 +22,6 @@ export const useRemoveMessage = () => {
   const isError = useMemo(() => status === 'error', [status]);
   const isSettled = useMemo(() => status === 'settled', [status]);
 
-  const mutation = useMutation(api.messages.remove);
-
   const mutate = useCallback(
     async (values: RequestType, options?: Options) => {
       try {
@@ -35,21 +29,34 @@ export const useRemoveMessage = () => {
         setError(null);
         setStatus('pending');
 
-        const response = await mutation(values);
+        const res = await fetch(`/api/messages/${values.id}`, {
+          method: 'DELETE',
+        });
+
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+
+        const response: ResponseType = await res.json();
+        setData(response);
+        setStatus('success');
+        queryClient.invalidateQueries({ queryKey: ['messages'] });
+        queryClient.invalidateQueries({ queryKey: ['message', values.id] });
         options?.onSuccess?.(response);
 
         return response;
-      } catch (error) {
+      } catch (err) {
         setStatus('error');
-        options?.onError?.(error as Error);
+        setError(err as Error);
+        options?.onError?.(err as Error);
 
-        if (!options?.throwError) throw error;
+        if (!options?.throwError) throw err;
       } finally {
         setStatus('settled');
         options?.onSettled?.();
       }
     },
-    [mutation],
+    [queryClient],
   );
 
   return {

@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import type { IconType } from 'react-icons/lib';
 
-import type { Id } from '@/../convex/_generated/dataModel';
+import type { Id } from '@/types/data-model';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceId } from '@/hooks/use-workspace-id';
 import { cn } from '@/lib/utils';

@@ -1,18 +1,31 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { useQuery } from '@tanstack/react-query';
 
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
+import type { MemberItem } from './use-get-members';
 
 interface UseGetMemberProps {
-  id: Id<'members'>;
+  id: string;
 }
 
 export const useGetMember = ({ id }: UseGetMemberProps) => {
-  const data = useQuery(api.members.getById, { id });
-
-  const isLoading = data === undefined;
+  const { data, isLoading } = useQuery<MemberItem | null>({
+    queryKey: ['member', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const res = await fetch(`/api/members/${id}`);
+      if (!res.ok) return null;
+      const item = await res.json();
+      return item
+        ? {
+            ...item,
+            _id: item.id,
+            user: { ...item.user, _id: item.user?.id },
+          }
+        : null;
+    },
+    enabled: !!id,
+  });
 
   return { data, isLoading };
 };

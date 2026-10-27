@@ -1,16 +1,22 @@
-import { useQuery } from 'convex/react';
+'use client';
 
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
+import { useQuery } from '@tanstack/react-query';
 
 interface UseGetMessageProps {
-  id: Id<'messages'>;
+  id: string;
 }
 
 export const useGetMessage = ({ id }: UseGetMessageProps) => {
-  const data = useQuery(api.messages.getById, { id });
-
-  const isLoading = data === undefined;
+  const { data, isLoading } = useQuery({
+    queryKey: ['message', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const res = await fetch(`/api/messages/${id}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!id,
+  });
 
   return { data, isLoading };
 };

@@ -1,5 +1,8 @@
-import { useAuthActions } from '@convex-dev/auth/react';
+'use client';
+
 import { TriangleAlert } from 'lucide-react';
+import { signIn } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
 import { FcGoogle } from 'react-icons/fc';
@@ -16,7 +19,7 @@ interface SignInCardProps {
 }
 
 export const SignInCard = ({ setState }: SignInCardProps) => {
-  const { signIn } = useAuthActions();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -24,19 +27,32 @@ export const SignInCard = ({ setState }: SignInCardProps) => {
 
   const handleOAuthSignIn = (value: 'github' | 'google') => {
     setPending(true);
-    signIn(value).finally(() => setPending(false));
+    signIn(value, { callbackUrl: '/' }).finally(() => setPending(false));
   };
 
-  const handleSignIn = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPending(true);
     setError('');
 
-    signIn('password', { email, password, flow: 'signIn' })
-      .catch(() => {
+    try {
+      const res = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (res?.error) {
         setError('Invalid email or password!');
-      })
-      .finally(() => setPending(false));
+      } else {
+        router.push('/');
+        router.refresh();
+      }
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -55,7 +71,14 @@ export const SignInCard = ({ setState }: SignInCardProps) => {
 
       <CardContent className="space-y-5 px-0 pb-0">
         <form onSubmit={handleSignIn} className="space-y-2.5">
-          <Input disabled={pending} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" required />
+          <Input
+            disabled={pending}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            type="email"
+            required
+          />
 
           <Input
             disabled={pending}
@@ -74,12 +97,24 @@ export const SignInCard = ({ setState }: SignInCardProps) => {
         <Separator />
 
         <div className="flex flex-col gap-y-2.5">
-          <Button disabled={pending} onClick={() => handleOAuthSignIn('google')} variant="outline" size="lg" className="relative w-full">
+          <Button
+            disabled={pending}
+            onClick={() => handleOAuthSignIn('google')}
+            variant="outline"
+            size="lg"
+            className="relative w-full"
+          >
             <FcGoogle className="absolute left-2.5 top-3 size-5" />
             Continue with Google
           </Button>
 
-          <Button disabled={pending} onClick={() => handleOAuthSignIn('github')} variant="outline" size="lg" className="relative w-full">
+          <Button
+            disabled={pending}
+            onClick={() => handleOAuthSignIn('github')}
+            variant="outline"
+            size="lg"
+            className="relative w-full"
+          >
             <FaGithub className="absolute left-2.5 top-3 size-5" />
             Continue with GitHub
           </Button>

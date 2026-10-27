@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # 1. Base de datos PostgreSQL 16
+  postgres:
+    image: postgres:16-alpine
+    container_name: slack_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: slack_clone
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d slack_clone"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - slack_network
+
+  # 2. Microservicio independiente de WebSockets (Socket.io)
+  socket-server:
+    build:
+      context: ./socket-server
+      dockerfile: Dockerfile
+    container_name: slack_sockets
+    restart: always
+    environment:
+      SOCKET_PORT: 4000
+      INTERNAL_SOCKET_SECRET: ${INTERNAL_SOCKET_SECRET:-slack-clone-internal-socket-secret}
+      CORS_ORIGIN: "*"
+    networks:
+      - slack_network
+
+  # 3. Aplicación Next.js 16 (App Router)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: slack_app
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_secure_password}@postgres:5432/slack_clone
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-random-nextauth-secret-key-32-chars}
+      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID:-}
+      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET:-}
+      AUTH_GOOGLE_CLIENT_ID: ${AUTH_GOOGLE_CLIENT_ID:-}
+      AUTH_GOOGLE_CLIENT_SECRET: ${AUTH_GOOGLE_CLIENT_SECRET:-}
+      SOCKET_INTERNAL_URL: http://socket-server:4000
+      INTERNAL_SOCKET_SECRET: ${INTERNAL_SOCKET_SECRET:-slack-clone-internal-socket-secret}
+      UPLOAD_DIR: /app/public/uploads
+    volumes:
+      - uploads:/app/public/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      socket-server:
+        condition: service_started
+    networks:
+      - slack_network
+
+  # 4. Proxy Inverso Nginx de Alto Desempeño
+  nginx:
+    image: nginx:alpine
+    container_name: slack_nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - uploads:/var/www/uploads:ro
+    depends_on:
+      - app
+      - socket-server
+    networks:
+      - slack_network
+
+volumes:
+  pgdata:
+    driver: local
+  uploads:
+    driver: local
+
+networks:
+  slack_network:
+    driver: bridge

@@ -1,7 +1,4 @@
-import { useMutation } from 'convex/react';
 import { useCallback, useMemo, useState } from 'react';
-
-import { api } from '@/../convex/_generated/api';
 
 type ResponseType = string | null;
 
@@ -22,31 +19,29 @@ export const useGenerateUploadUrl = () => {
   const isError = useMemo(() => status === 'error', [status]);
   const isSettled = useMemo(() => status === 'settled', [status]);
 
-  const mutation = useMutation(api.upload.generateUploadUrl);
+  const mutate = useCallback(async (_values?: unknown, options?: Options) => {
+    try {
+      setData(null);
+      setError(null);
+      setStatus('pending');
 
-  const mutate = useCallback(
-    async (_values: {}, options?: Options) => {
-      try {
-        setData(null);
-        setError(null);
-        setStatus('pending');
+      const uploadUrl = '/api/upload';
+      setData(uploadUrl);
+      setStatus('success');
+      options?.onSuccess?.(uploadUrl);
 
-        const response = await mutation();
-        options?.onSuccess?.(response);
+      return uploadUrl;
+    } catch (err) {
+      setStatus('error');
+      setError(err as Error);
+      options?.onError?.(err as Error);
 
-        return response;
-      } catch (error) {
-        setStatus('error');
-        options?.onError?.(error as Error);
-
-        if (!options?.throwError) throw error;
-      } finally {
-        setStatus('settled');
-        options?.onSettled?.();
-      }
-    },
-    [mutation],
-  );
+      if (!options?.throwError) throw err;
+    } finally {
+      setStatus('settled');
+      options?.onSettled?.();
+    }
+  }, []);
 
   return {
     mutate,

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
 
-import type { Id } from '@/../convex/_generated/dataModel';
+import type { Id } from '@/types/data-model';
 import { Button } from '@/components/ui/button';
 import {
   Command,

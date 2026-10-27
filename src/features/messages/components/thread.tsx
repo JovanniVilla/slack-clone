@@ -5,7 +5,7 @@ import type Quill from 'quill';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import type { Id } from '@/../convex/_generated/dataModel';
+import type { Id } from '@/types/data-model';
 import { Message } from '@/components/message';
 import { Button } from '@/components/ui/button';
 import { useCurrentMember } from '@/features/members/api/use-current-member';

@@ -1,10 +1,14 @@
-import { useQuery } from 'convex/react';
-
-import { api } from '@/../convex/_generated/api';
+import { useQuery } from '@tanstack/react-query';
 
 export const useCurrentUser = () => {
-  const data = useQuery(api.users.current);
-  const isLoading = data === undefined;
+  const { data, isLoading } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: async () => {
+      const res = await fetch('/api/users/current');
+      if (!res.ok) throw new Error('Failed to fetch current user');
+      return res.json();
+    },
+  });
 
-  return { data, isLoading };
+  return { data: data ?? null, isLoading };
 };

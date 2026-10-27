@@ -1,19 +1,15 @@
-import { useMutation } from 'convex/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
-
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
 
 type RequestType = {
   body: string;
-  image?: Id<'_storage'>;
-
-  workspaceId: Id<'workspaces'>;
-  channelId?: Id<'channels'>;
-  conversationId?: Id<'conversations'>;
-  parentMessageId?: Id<'messages'>;
+  image?: string;
+  workspaceId: string;
+  channelId?: string;
+  conversationId?: string;
+  parentMessageId?: string;
 };
-type ResponseType = Id<'messages'> | null;
+type ResponseType = string | null;
 
 type Options = {
   onSuccess?: (data: ResponseType) => void;
@@ -23,6 +19,7 @@ type Options = {
 };
 
 export const useCreateMessage = () => {
+  const queryClient = useQueryClient();
   const [data, setData] = useState<ResponseType>(null);
   const [error, setError] = useState<Error | null>(null);
   const [status, setStatus] = useState<'success' | 'error' | 'settled' | 'pending' | null>(null);
@@ -32,8 +29,6 @@ export const useCreateMessage = () => {
   const isError = useMemo(() => status === 'error', [status]);
   const isSettled = useMemo(() => status === 'settled', [status]);
 
-  const mutation = useMutation(api.messages.create);
-
   const mutate = useCallback(
     async (values: RequestType, options?: Options) => {
       try {
@@ -41,21 +36,35 @@ export const useCreateMessage = () => {
         setError(null);
         setStatus('pending');
 
-        const response = await mutation(values);
+        const res = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+        });
+
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+
+        const response: ResponseType = await res.json();
+        setData(response);
+        setStatus('success');
+        queryClient.invalidateQueries({ queryKey: ['messages'] });
         options?.onSuccess?.(response);
 
         return response;
-      } catch (error) {
+      } catch (err) {
         setStatus('error');
-        options?.onError?.(error as Error);
+        setError(err as Error);
+        options?.onError?.(err as Error);
 
-        if (!options?.throwError) throw error;
+        if (!options?.throwError) throw err;
       } finally {
         setStatus('settled');
         options?.onSettled?.();
       }
     },
-    [mutation],
+    [queryClient],
   );
 
   return {

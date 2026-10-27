@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-import type { Id } from '@/../convex/_generated/dataModel';
+import type { Id } from '@/types/data-model';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -152,7 +152,7 @@ export const Profile = ({ memberId, onClose }: ProfileProps) => {
 
         <div className="flex flex-col items-center justify-center p-4">
           <Avatar className="size-full max-h-[256px] max-w-[256px]">
-            <AvatarImage src={member.user.image} />
+            <AvatarImage src={member.user.image || undefined} />
 
             <AvatarFallback className="aspect-square text-6xl">{avatarFallback}</AvatarFallback>
           </Avatar>

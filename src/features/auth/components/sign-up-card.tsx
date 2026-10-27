@@ -1,5 +1,8 @@
-import { useAuthActions } from '@convex-dev/auth/react';
+'use client';
+
 import { TriangleAlert } from 'lucide-react';
+import { signIn } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
 import { FcGoogle } from 'react-icons/fc';
@@ -16,7 +19,7 @@ interface SignUpCardProps {
 }
 
 export const SignUpCard = ({ setState }: SignUpCardProps) => {
-  const { signIn } = useAuthActions();
+  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,35 +29,59 @@ export const SignUpCard = ({ setState }: SignUpCardProps) => {
 
   const handleOAuthSignUp = (value: 'github' | 'google') => {
     setPending(true);
-    signIn(value).finally(() => setPending(false));
+    signIn(value, { callbackUrl: '/' }).finally(() => setPending(false));
   };
 
-  const handleSignUp = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const validateEmail = (email: string) => {
-      return String(email)
+    const validateEmail = (emailStr: string) => {
+      return String(emailStr)
         .toLowerCase()
         .match(
           /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
         );
     };
 
-    const validatePassword = (password: string) => {
-      return String(password).match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@.#$!%*?&])[A-Za-z\d@.#$!%*?&]{8,15}$/);
-    };
-
     if (!validateEmail(email)) return setError('Invalid Email.');
-    if (password !== confirmPassword) return setError("Password and Confirm Password doesn't match.");
-    if (!validatePassword(password)) return setError('Password must be strong.');
+    if (password !== confirmPassword) return setError("Password and Confirm Password don't match.");
+    if (password.length < 6) return setError('Password must be at least 6 characters long.');
 
     setPending(true);
     setError('');
-    signIn('password', { name, email, password, flow: 'signUp' })
-      .catch(() => {
-        setError('Something went wrong!');
-      })
-      .finally(() => setPending(false));
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        setError(errorText || 'Something went wrong!');
+        setPending(false);
+        return;
+      }
+
+      // Auto login after successful registration
+      const loginRes = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (loginRes?.error) {
+        setError('Registered, but failed to auto-login. Please sign in manually.');
+      } else {
+        router.push('/');
+        router.refresh();
+      }
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -83,7 +110,15 @@ export const SignUpCard = ({ setState }: SignUpCardProps) => {
             required
           />
 
-          <Input disabled={pending} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" required />
+          <Input
+            disabled={pending}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            type="email"
+            required
+          />
+
           <Input
             disabled={pending}
             value={password}
@@ -110,12 +145,24 @@ export const SignUpCard = ({ setState }: SignUpCardProps) => {
         <Separator />
 
         <div className="flex flex-col gap-y-2.5">
-          <Button disabled={pending} onClick={() => handleOAuthSignUp('google')} variant="outline" size="lg" className="relative w-full">
+          <Button
+            disabled={pending}
+            onClick={() => handleOAuthSignUp('google')}
+            variant="outline"
+            size="lg"
+            className="relative w-full"
+          >
             <FcGoogle className="absolute left-2.5 top-3 size-5" />
             Continue with Google
           </Button>
 
-          <Button disabled={pending} onClick={() => handleOAuthSignUp('github')} variant="outline" size="lg" className="relative w-full">
+          <Button
+            disabled={pending}
+            onClick={() => handleOAuthSignUp('github')}
+            variant="outline"
+            size="lg"
+            className="relative w-full"
+          >
             <FaGithub className="absolute left-2.5 top-3 size-5" />
             Continue with GitHub
           </Button>

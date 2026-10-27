@@ -4,7 +4,7 @@ import { Loader } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import { useDefaultLayout } from 'react-resizable-panels';
 
-import type { Id } from '@/../convex/_generated/dataModel';
+import type { Id } from '@/types/data-model';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Profile } from '@/features/members/components/profile';
 import { Thread } from '@/features/messages/components/thread';
