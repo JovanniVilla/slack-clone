@@ -23,8 +23,8 @@ services:
   # 2. Microservicio independiente de WebSockets (Socket.io)
   socket-server:
     build:
-      context: ./socket-server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: socket-server/Dockerfile
     container_name: slack_sockets
     restart: always
     environment:
